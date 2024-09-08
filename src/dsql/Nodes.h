@@ -187,16 +187,18 @@ public:
 		const MetaName& secClass);
 
 	static void storePrivileges(thread_db* tdbb, jrd_tra* transaction,
-		const MetaName& name, int type, const char* privileges);
+		const QualifiedName& name, int type, const char* privileges);
 
 	static void deletePrivilegesByRelName(thread_db* tdbb, jrd_tra* transaction,
-		const MetaName& name, int type);
+		const QualifiedName& name, int type);
 
 public:
 	// Check permission on DDL operation. Return true if everything is OK.
 	// Raise an exception for bad permission.
 	// If returns false permissions will be check in old style at vio level as well as while direct RDB$ tables modify.
 	virtual void checkPermission(thread_db* tdbb, jrd_tra* transaction) = 0;
+
+	virtual void getSchema(MetaName& schema) = 0;
 
 	// Set the scratch's transaction when executing a node. Fact of accessing the scratch during
 	// execution is a hack.
@@ -221,8 +223,8 @@ public:
 	enum DdlTriggerWhen { DTW_BEFORE, DTW_AFTER };
 
 	static void executeDdlTrigger(thread_db* tdbb, jrd_tra* transaction,
-		DdlTriggerWhen when, int action, const MetaName& objectName,
-		const MetaName& oldNewObjectName, const Firebird::string& sqlText);
+		DdlTriggerWhen when, int action, const QualifiedName& objectName,
+		const QualifiedName& oldNewObjectName, const Firebird::string& sqlText);
 
 protected:
 	typedef Firebird::Pair<Firebird::Left<MetaName, bid> > MetaNameBidPair;
@@ -246,9 +248,9 @@ protected:
 	}
 
 	void executeDdlTrigger(thread_db* tdbb, DsqlCompilerScratch* dsqlScratch, jrd_tra* transaction,
-		DdlTriggerWhen when, int action, const MetaName& objectName,
-		const MetaName& oldNewObjectName);
-	void storeGlobalField(thread_db* tdbb, jrd_tra* transaction, MetaName& name,
+		DdlTriggerWhen when, int action, const QualifiedName& objectName,
+		const QualifiedName& oldNewObjectName);
+	void storeGlobalField(thread_db* tdbb, jrd_tra* transaction, QualifiedName& name,
 		const TypeClause* field,
 		const Firebird::string& computedSource = "",
 		const BlrDebugWriter::BlrData& computedValue = BlrDebugWriter::BlrData());
@@ -1652,7 +1654,7 @@ public:
 class GeneratorItem : public Printable
 {
 public:
-	GeneratorItem(Firebird::MemoryPool& pool, const MetaName& name)
+	GeneratorItem(Firebird::MemoryPool& pool, const QualifiedName& name)
 		: id(0), name(pool, name), secName(pool)
 	{}
 
@@ -1669,7 +1671,7 @@ public:
 
 public:
 	SLONG id;
-	MetaName name;
+	QualifiedName name;
 	MetaName secName;
 };
 

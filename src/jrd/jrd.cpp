@@ -731,7 +731,7 @@ namespace
 		{
 			PreparedStatement::Builder sql;
 			MetaName missPriv("UNKNOWN");
-			sql << "select" << sql("rdb$type_name", missPriv) << "from rdb$types"
+			sql << "select" << sql("rdb$type_name", missPriv) << "from system.rdb$types"
 				<< "where rdb$field_name = 'RDB$SYSTEM_PRIVILEGES'"
 				<< "  and rdb$type =" << SSHORT(sp);
 			jrd_tra* transaction = attachment->getSysTransaction();
@@ -913,7 +913,7 @@ void Trigger::compile(thread_db* tdbb)
 									 *csb->csb_dbg_info);
 			}
 
-			PAR_blr(tdbb, relation, blr.begin(), (ULONG) blr.getCount(), NULL, &csb, &statement,
+			PAR_blr(tdbb, &name.schema, relation, blr.begin(), (ULONG) blr.getCount(), NULL, &csb, &statement,
 				(relation ? true : false), par_flags);
 
 			trace.finish(statement, ITracePlugin::RESULT_SUCCESS);

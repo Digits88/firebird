@@ -241,7 +241,7 @@ bool CharSetContainer::lookupInternalCharSet(USHORT id, SubtypeInfo* info)
 {
 	if (id == CS_UTF16)
 	{
-		info->charsetName = "UTF16";
+		info->charsetName = QualifiedName("UTF16");
 		return true;
 	}
 
@@ -261,8 +261,8 @@ bool CharSetContainer::lookupInternalCharSet(USHORT id, SubtypeInfo* info)
 		{
 			if (colDef->charSetId == id && colDef->collationId == 0)
 			{
-				info->charsetName = csDef->name;
-				info->collationName = colDef->name;
+				info->charsetName = QualifiedName(csDef->name, SYSTEM_SCHEMA);
+				info->collationName = QualifiedName(colDef->name, SYSTEM_SCHEMA);
 				info->attributes = colDef->attributes;
 				info->ignoreAttributes = false;
 
@@ -310,7 +310,7 @@ CharSetContainer::CharSetContainer(MemoryPool& p, USHORT cs_id, const SubtypeInf
 	charset* csL = FB_NEW_POOL(p) charset;
 	memset(csL, 0, sizeof(charset));
 
-	if (IntlManager::lookupCharSet(info->charsetName.c_str(), csL) &&
+	if (IntlManager::lookupCharSet(info->charsetName.object.c_str(), csL) &&	// FIXME: schema
 		(csL->charset_flags & CHARSET_ASCII_BASED))
 	{
 		this->cs = CharSet::createInstance(p, cs_id, csL);
@@ -318,7 +318,7 @@ CharSetContainer::CharSetContainer(MemoryPool& p, USHORT cs_id, const SubtypeInf
 	else
 	{
 		delete csL;
-		ERR_post(Arg::Gds(isc_charset_not_installed) << Arg::Str(info->charsetName));
+		ERR_post(Arg::Gds(isc_charset_not_installed) << info->charsetName.toString());
 	}
 }
 
@@ -412,7 +412,7 @@ Collation* CharSetContainer::lookupCollation(thread_db* tdbb, USHORT tt_id)
 
 		charset_collations[id] = Collation::createInstance(*att->att_pool, tt_id,
 			tt, info.attributes, charset);
-		charset_collations[id]->name = info.collationName;
+		charset_collations[id]->name = info.collationName.object;	// FIXME:
 
 		tt.release();
 
@@ -489,7 +489,7 @@ void CharSetContainer::unloadCollation(thread_db* tdbb, USHORT tt_id)
 
 static void lookup_texttype(texttype* tt, const SubtypeInfo* info)
 {
-	IntlManager::lookupCollation(info->baseCollationName.c_str(), info->charsetName.c_str(),
+	IntlManager::lookupCollation(info->baseCollationName.object.c_str(), info->charsetName.object.c_str(),	// FIXME: schema
 		info->attributes, info->specificAttributes.begin(),
 		info->specificAttributes.getCount(), info->ignoreAttributes, tt);
 }

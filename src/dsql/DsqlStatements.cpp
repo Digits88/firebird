@@ -253,6 +253,7 @@ void DsqlDdlStatement::dsqlPass(thread_db* tdbb, DsqlCompilerScratch* scratch, n
 	try
 	{
 		node = Node::doDsqlPass(scratch, node);
+		node->getSchema(scratch->ddlSchema);
 	}
 	catch (status_exception& ex)
 	{

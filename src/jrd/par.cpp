@@ -99,6 +99,10 @@ namespace
 				m_csb->csb_g_flags |= flags;
 			}
 
+			// FIXME: generalize
+			if (trigger && relation && relation->isSystem())
+				m_csb->csb_schema = SYSTEM_SCHEMA;
+
 			// If there is a request ptr, this is a trigger.  Set up contexts 0 and 1 for
 			// the target relation
 
@@ -168,7 +172,7 @@ namespace
 
 // Parse blr, returning a compiler scratch block with the results.
 // Caller must do pool handling.
-DmlNode* PAR_blr(thread_db* tdbb, jrd_rel* relation, const UCHAR* blr, ULONG blr_length,
+DmlNode* PAR_blr(thread_db* tdbb, const MetaName* schema, jrd_rel* relation, const UCHAR* blr, ULONG blr_length,
 	CompilerScratch* view_csb, CompilerScratch** csb_ptr, Statement** statementPtr,
 	const bool trigger, USHORT flags)
 {
@@ -179,6 +183,9 @@ DmlNode* PAR_blr(thread_db* tdbb, jrd_rel* relation, const UCHAR* blr, ULONG blr
 #endif
 
 	BlrParseWrapper csb(*tdbb->getDefaultPool(), relation, view_csb, csb_ptr, trigger, flags);
+
+	if (schema)
+		csb->csb_schema = *schema;
 
 	csb->csb_blr_reader = BlrReader(blr, blr_length);
 
@@ -216,7 +223,7 @@ void PAR_preparsed_node(thread_db* tdbb, jrd_rel* relation, DmlNode* node,
 
 // PAR_blr equivalent for validation expressions.
 // Validation expressions are boolean expressions, but may be prefixed with a blr_stmt_expr.
-BoolExprNode* PAR_validation_blr(thread_db* tdbb, jrd_rel* relation, const UCHAR* blr, ULONG blr_length,
+BoolExprNode* PAR_validation_blr(thread_db* tdbb, const MetaName* schema, jrd_rel* relation, const UCHAR* blr, ULONG blr_length,
 	CompilerScratch* view_csb, CompilerScratch** csb_ptr, USHORT flags)
 {
 	SET_TDBB(tdbb);
@@ -228,6 +235,9 @@ BoolExprNode* PAR_validation_blr(thread_db* tdbb, jrd_rel* relation, const UCHAR
 #endif
 
 	BlrParseWrapper csb(*tdbb->getDefaultPool(), relation, view_csb, csb_ptr, false, flags);
+
+	if (schema)
+		csb->csb_schema = *schema;
 
 	csb->csb_blr_reader = BlrReader(blr, blr_length);
 
@@ -411,6 +421,7 @@ USHORT PAR_desc(thread_db* tdbb, CompilerScratch* csb, dsc* desc, ItemInfo* item
 
 	desc->clear();
 
+	bool explicitCollation = false;
 	const USHORT dtype = csb->csb_blr_reader.getByte();
 
 	switch (dtype)
@@ -423,23 +434,29 @@ USHORT PAR_desc(thread_db* tdbb, CompilerScratch* csb, dsc* desc, ItemInfo* item
 
 		case blr_domain_name:
 		case blr_domain_name2:
+		case blr_domain_name3:
 		{
 			const bool fullDomain = (csb->csb_blr_reader.getByte() == blr_domain_full);
-			MetaName* name = FB_NEW_POOL(csb->csb_pool) MetaName(csb->csb_pool);
-			csb->csb_blr_reader.getMetaName(*name);
+			const auto name = FB_NEW_POOL(csb->csb_pool) QualifiedName(csb->csb_pool);
 
-			MetaNamePair namePair(*name, "");
+			if (dtype == blr_domain_name3)
+				csb->csb_blr_reader.getMetaName(name->schema);
+
+			csb->csb_blr_reader.getMetaName(name->object);
+			csb->qualifyExistingName(tdbb, *name, obj_field);
+
+			QualifiedNameMetaNamePair entry(*name, {});	// FIXME: !!
 
 			FieldInfo fieldInfo;
-			bool exist = csb->csb_map_field_info.get(namePair, fieldInfo);
+			bool exist = csb->csb_map_field_info.get(entry, fieldInfo);
 			MET_get_domain(tdbb, csb->csb_pool, *name, desc, (exist ? NULL : &fieldInfo));
 
 			if (!exist)
-				csb->csb_map_field_info.put(namePair, fieldInfo);
+				csb->csb_map_field_info.put(entry, fieldInfo);
 
 			if (itemInfo)
 			{
-				itemInfo->field = namePair;
+				itemInfo->field = entry;
 
 				if (fullDomain)
 				{
@@ -450,8 +467,11 @@ USHORT PAR_desc(thread_db* tdbb, CompilerScratch* csb, dsc* desc, ItemInfo* item
 					itemInfo->nullable = true;
 			}
 
-			if (dtype == blr_domain_name2)
+			if (dtype == blr_domain_name2 ||
+				(dtype == blr_domain_name3 && csb->csb_blr_reader.getByte() != 0))
 			{
+				explicitCollation = true;
+
 				const USHORT ttype = csb->csb_blr_reader.getWord();
 
 				switch (desc->dsc_dtype)
@@ -485,26 +505,33 @@ USHORT PAR_desc(thread_db* tdbb, CompilerScratch* csb, dsc* desc, ItemInfo* item
 
 		case blr_column_name:
 		case blr_column_name2:
+		case blr_column_name3:
 		{
 			const bool fullDomain = (csb->csb_blr_reader.getByte() == blr_domain_full);
-			MetaName* relationName = FB_NEW_POOL(csb->csb_pool) MetaName(csb->csb_pool);
-			csb->csb_blr_reader.getMetaName(*relationName);
-			MetaName* fieldName = FB_NEW_POOL(csb->csb_pool) MetaName(csb->csb_pool);
+			const auto relationName = FB_NEW_POOL(csb->csb_pool) QualifiedName(csb->csb_pool);
+
+			if (dtype == blr_column_name3)
+				csb->csb_blr_reader.getMetaName(relationName->schema);
+
+			csb->csb_blr_reader.getMetaName(relationName->object);
+			csb->qualifyExistingName(tdbb, *relationName, obj_relation);
+
+			const auto fieldName = FB_NEW_POOL(csb->csb_pool) MetaName(csb->csb_pool);
 			csb->csb_blr_reader.getMetaName(*fieldName);
 
-			MetaNamePair namePair(*relationName, *fieldName);
+			QualifiedNameMetaNamePair entry(*relationName, *fieldName);
 
 			FieldInfo fieldInfo;
-			bool exist = csb->csb_map_field_info.get(namePair, fieldInfo);
+			bool exist = csb->csb_map_field_info.get(entry, fieldInfo);
 			MET_get_relation_field(tdbb, csb->csb_pool, *relationName, *fieldName, desc,
 				(exist ? NULL : &fieldInfo));
 
 			if (!exist)
-				csb->csb_map_field_info.put(namePair, fieldInfo);
+				csb->csb_map_field_info.put(entry, fieldInfo);
 
 			if (itemInfo)
 			{
-				itemInfo->field = namePair;
+				itemInfo->field = entry;
 
 				if (fullDomain)
 				{
@@ -515,8 +542,11 @@ USHORT PAR_desc(thread_db* tdbb, CompilerScratch* csb, dsc* desc, ItemInfo* item
 					itemInfo->nullable = true;
 			}
 
-			if (dtype == blr_column_name2)
+			if (dtype == blr_column_name2 ||
+				(dtype == blr_column_name3 && csb->csb_blr_reader.getByte() != 0))
 			{
+				// FIXME: explicitCollation = true; ???
+
 				const USHORT ttype = csb->csb_blr_reader.getWord();
 
 				switch (desc->dsc_dtype)
@@ -564,8 +594,8 @@ USHORT PAR_desc(thread_db* tdbb, CompilerScratch* csb, dsc* desc, ItemInfo* item
 
 	if (itemInfo)
 	{
-		if (dtype == blr_cstring2 || dtype == blr_text2 || dtype == blr_varying2 ||
-			dtype == blr_blob2 || dtype == blr_domain_name2)
+		if (dtype == blr_cstring2 || dtype == blr_text2 || dtype == blr_varying2 || dtype == blr_blob2 ||
+			explicitCollation)
 		{
 			itemInfo->explicitCollation = true;
 		}
@@ -691,7 +721,10 @@ CompilerScratch* PAR_parse(thread_db* tdbb, const UCHAR* blr, ULONG blr_length,
 	csb->csb_blr_reader = BlrReader(blr, blr_length);
 
 	if (internal_flag)
+	{
 		csb->csb_g_flags |= csb_internal;
+		csb->csb_schema = SYSTEM_SCHEMA;
+	}
 
 	getBlrVersion(csb);
 
@@ -985,6 +1018,7 @@ static PlanNode* par_plan(thread_db* tdbb, CompilerScratch* csb)
 			case blr_rid:
 			case blr_relation2:
 			case blr_rid2:
+			case blr_relation3:
 			{
 				const auto relationNode = RelationSourceNode::parse(tdbb, csb, blrOp, false);
 				plan->recordSourceNode = relationNode;
@@ -1048,8 +1082,8 @@ static PlanNode* par_plan(thread_db* tdbb, CompilerScratch* csb)
 
 				// pick up the index name and look up the appropriate ids
 
-				MetaName name;
-				csb->csb_blr_reader.getMetaName(name);
+				QualifiedName name;
+				csb->csb_blr_reader.getMetaName(name.object);	// FIXME:
 
 				SLONG relation_id;
 				IndexStatus idx_status;
@@ -1059,21 +1093,21 @@ static PlanNode* par_plan(thread_db* tdbb, CompilerScratch* csb)
 				{
 					if (isGbak)
 					{
-						PAR_warning(Arg::Warning(isc_indexname) << Arg::Str(name) <<
-																   Arg::Str(relation->rel_name));
+						PAR_warning(Arg::Warning(isc_indexname) << name.toString() <<
+																   relation->rel_name.toString());
 					}
 					else
 					{
-						PAR_error(csb, Arg::Gds(isc_indexname) << Arg::Str(name) <<
-															  	  Arg::Str(relation->rel_name));
+						PAR_error(csb, Arg::Gds(isc_indexname) << name.toString() <<
+															  	  relation->rel_name.toString());
 					}
 				}
 				else if (idx_status == MET_object_deferred_active)
 				{
 					if (!isGbak)
 					{
-						PAR_error(csb, Arg::Gds(isc_indexname) << Arg::Str(name) <<
-																  Arg::Str(relation->rel_name));
+						PAR_error(csb, Arg::Gds(isc_indexname) << name.toString() <<
+																  relation->rel_name.toString());
 					}
 				}
 
@@ -1117,8 +1151,8 @@ static PlanNode* par_plan(thread_db* tdbb, CompilerScratch* csb)
 
 				while (count-- > 0)
 				{
-					MetaName name;
-					csb->csb_blr_reader.getMetaName(name);
+					QualifiedName name;
+					csb->csb_blr_reader.getMetaName(name.object);	// FIXME:
 
 					SLONG relation_id;
 					IndexStatus idx_status;
@@ -1128,21 +1162,21 @@ static PlanNode* par_plan(thread_db* tdbb, CompilerScratch* csb)
 					{
 						if (isGbak)
 						{
-							PAR_warning(Arg::Warning(isc_indexname) << Arg::Str(name) <<
-																	   Arg::Str(relation->rel_name));
+							PAR_warning(Arg::Warning(isc_indexname) << name.toString() <<
+																	   relation->rel_name.toString());
 						}
 						else
 						{
-							PAR_error(csb, Arg::Gds(isc_indexname) << Arg::Str(name) <<
-																  	  Arg::Str(relation->rel_name));
+							PAR_error(csb, Arg::Gds(isc_indexname) << name.toString() <<
+																  	  relation->rel_name.toString());
 						}
 					}
 					else if (idx_status == MET_object_deferred_active)
 					{
 						if (!isGbak)
 						{
-							PAR_error(csb, Arg::Gds(isc_indexname) << Arg::Str(name) <<
-																	  Arg::Str(relation->rel_name));
+							PAR_error(csb, Arg::Gds(isc_indexname) << name.toString() <<
+																	  relation->rel_name.toString());
 						}
 					}
 
@@ -1206,6 +1240,7 @@ RecordSourceNode* PAR_parseRecordSource(thread_db* tdbb, CompilerScratch* csb)
 		case blr_rid:
 		case blr_relation2:
 		case blr_rid2:
+		case blr_relation3:
 			return RelationSourceNode::parse(tdbb, csb, blrOp, true);
 
 		case blr_local_table_id:
@@ -1312,11 +1347,11 @@ RseNode* PAR_rse(thread_db* tdbb, CompilerScratch* csb, SSHORT rse_op)
 				const jrd_rel* relation = relNode->relation;
 				fb_assert(relation);
 				if (relation->isVirtual())
-					PAR_error(csb, Arg::Gds(isc_forupdate_virtualtbl) << relation->rel_name, false);
+					PAR_error(csb, Arg::Gds(isc_forupdate_virtualtbl) << relation->rel_name.toString(), false);
 				if (relation->isSystem())
-					PAR_error(csb, Arg::Gds(isc_forupdate_systbl) << relation->rel_name, false);
+					PAR_error(csb, Arg::Gds(isc_forupdate_systbl) << relation->rel_name.toString(), false);
 				if (relation->isTemporary())
-					PAR_error(csb, Arg::Gds(isc_forupdate_temptbl) << relation->rel_name, false);
+					PAR_error(csb, Arg::Gds(isc_forupdate_temptbl) << relation->rel_name.toString(), false);
 			}
 			rse->flags |= RseNode::FLAG_WRITELOCK;
 			break;
@@ -1550,6 +1585,7 @@ DmlNode* PAR_parse_node(thread_db* tdbb, CompilerScratch* csb)
 		case blr_rid:
 		case blr_relation2:
 		case blr_rid2:
+		case blr_relation3:
 		case blr_local_table_id:
 		case blr_union:
 		case blr_recurse:
@@ -1647,14 +1683,16 @@ static void parseSubRoutines(thread_db* tdbb, CompilerScratch* csb)
 	{
 		const auto node = pair.second;
 		Jrd::ContextPoolHolder context(tdbb, &node->subCsb->csb_pool);
-		PAR_blr(tdbb, nullptr, node->blrStart, node->blrLength, nullptr, &node->subCsb, nullptr, false, 0);
+		PAR_blr(tdbb, &csb->csb_schema, nullptr, node->blrStart, node->blrLength, nullptr,
+			&node->subCsb, nullptr, false, 0);
 	}
 
 	for (auto& pair : csb->subProcedures)
 	{
 		const auto node = pair.second;
 		Jrd::ContextPoolHolder context(tdbb, &node->subCsb->csb_pool);
-		PAR_blr(tdbb, nullptr, node->blrStart, node->blrLength, nullptr, &node->subCsb, nullptr, false, 0);
+		PAR_blr(tdbb, &csb->csb_schema, nullptr, node->blrStart, node->blrLength, nullptr,
+			&node->subCsb, nullptr, false, 0);
 	}
 }
 

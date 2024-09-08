@@ -650,7 +650,7 @@
 
 #define isc_sdl_version1                  1
 #define isc_sdl_eoc                       255
-#define isc_sdl_relation                  2
+#define isc_sdl_relation                  2	// FIXME: schema
 #define isc_sdl_rid                       3
 #define isc_sdl_field                     4
 #define isc_sdl_fid                       5

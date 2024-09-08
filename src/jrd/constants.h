@@ -98,12 +98,12 @@ const char* const UNIQUE_CNSTRT		= "UNIQUE";
 const char* const CHECK_CNSTRT		= "CHECK";
 const char* const NOT_NULL_CNSTRT	= "NOT NULL";
 
-const char* const REL_SCOPE_PERSISTENT		= "persistent table \"%s\"";
-const char* const REL_SCOPE_GTT_PRESERVE	= "global temporary table \"%s\" of type ON COMMIT PRESERVE ROWS";
-const char* const REL_SCOPE_GTT_DELETE		= "global temporary table \"%s\" of type ON COMMIT DELETE ROWS";
-const char* const REL_SCOPE_EXTERNAL		= "external table \"%s\"";
-const char* const REL_SCOPE_VIEW			= "view \"%s\"";
-const char* const REL_SCOPE_VIRTUAL			= "virtual table \"%s\"";
+const char* const REL_SCOPE_PERSISTENT		= "persistent table %s";
+const char* const REL_SCOPE_GTT_PRESERVE	= "global temporary table %s of type ON COMMIT PRESERVE ROWS";
+const char* const REL_SCOPE_GTT_DELETE		= "global temporary table %s of type ON COMMIT DELETE ROWS";
+const char* const REL_SCOPE_EXTERNAL		= "external table %s";
+const char* const REL_SCOPE_VIEW			= "view %s";
+const char* const REL_SCOPE_VIRTUAL			= "virtual table %s";
 
 // literal strings in rdb$ref_constraints to be used to identify
 // the cascade actions for referential constraints. Used
@@ -127,6 +127,8 @@ const int IMPLICIT_PK_PREFIX_LEN = 11;
 // The invisible "id zero" generator.
 const char* const MASTER_GENERATOR = ""; //Was "RDB$GENERATORS";
 
+constexpr const char* SYSTEM_SCHEMA = "SYSTEM";
+constexpr const char* DEFAULT_SCHEMA = SYSTEM_SCHEMA;	// need work to be different
 
 // Automatically created security classes for SQL objects.
 // Keep in sync with trig.h

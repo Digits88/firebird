@@ -141,19 +141,19 @@ namespace
 				const Parameter* param = parameters[index / 2];
 
 				if (param->prm_mechanism != prm_mech_type_of &&
-					!fb_utils::implicit_domain(param->prm_field_source.c_str()))
+					!fb_utils::implicit_domain(param->prm_field_source.object.c_str()))
 				{
-					MetaNamePair namePair(param->prm_field_source, "");
+					QualifiedNameMetaNamePair entry(param->prm_field_source, {});
 
 					FieldInfo fieldInfo;
-					bool exist = csb->csb_map_field_info.get(namePair, fieldInfo);
+					bool exist = csb->csb_map_field_info.get(entry, fieldInfo);
 					MET_get_domain(tdbb, csb->csb_pool, param->prm_field_source, desc,
 						(exist ? NULL : &fieldInfo));
 
 					if (!exist)
-						csb->csb_map_field_info.put(namePair, fieldInfo);
+						csb->csb_map_field_info.put(entry, fieldInfo);
 
-					itemInfo->field = namePair;
+					itemInfo->field = entry;
 					itemInfo->nullable = fieldInfo.nullable;
 					itemInfo->fullDomain = true;
 				}
@@ -226,12 +226,12 @@ namespace
 				const auto parameter = parameters[paramIndex];
 
 				if (parameter->prm_mechanism != prm_mech_type_of &&
-					!fb_utils::implicit_domain(parameter->prm_field_source.c_str()))
+					!fb_utils::implicit_domain(parameter->prm_field_source.object.c_str()))
 				{
-					MetaNamePair namePair(parameter->prm_field_source, "");
+					QualifiedNameMetaNamePair entry(parameter->prm_field_source, {});
 
 					FieldInfo fieldInfo;
-					bool exist = csb->csb_map_field_info.get(namePair, fieldInfo);
+					bool exist = csb->csb_map_field_info.get(entry, fieldInfo);
 
 					if (exist && fieldInfo.defaultValue)
 						defaultValuesNode->items[paramIndex] = CMP_clone_node(tdbb, csb, fieldInfo.defaultValue);
@@ -808,19 +808,19 @@ ExtEngineManager::Function::Function(thread_db* tdbb, MemoryPool& pool, Compiler
 		ItemInfo itemInfo;
 
 		if (param->prm_mechanism != prm_mech_type_of &&
-			!fb_utils::implicit_domain(param->prm_field_source.c_str()))
+			!fb_utils::implicit_domain(param->prm_field_source.object.c_str()))
 		{
-			const MetaNamePair namePair(param->prm_field_source, "");
-			const bool exist = csb->csb_map_field_info.get(namePair, fieldInfo);
+			const QualifiedNameMetaNamePair entry(param->prm_field_source, {});
+			const bool exist = csb->csb_map_field_info.get(entry, fieldInfo);
 
 			if (!exist)
 			{
 				dsc dummyDesc;
 				MET_get_domain(tdbb, csb->csb_pool, param->prm_field_source, &dummyDesc, &fieldInfo);
-				csb->csb_map_field_info.put(namePair, fieldInfo);
+				csb->csb_map_field_info.put(entry, fieldInfo);
 			}
 
-			itemInfo.field = namePair;
+			itemInfo.field = entry;
 			itemInfo.nullable = fieldInfo.nullable;
 			itemInfo.fullDomain = true;
 		}
@@ -847,16 +847,16 @@ ExtEngineManager::Function::Function(thread_db* tdbb, MemoryPool& pool, Compiler
 		ItemInfo itemInfo;
 
 		if (param->prm_mechanism != prm_mech_type_of &&
-			!fb_utils::implicit_domain(param->prm_field_source.c_str()))
+			!fb_utils::implicit_domain(param->prm_field_source.object.c_str()))
 		{
-			const MetaNamePair namePair(param->prm_field_source, "");
-			const bool exist = csb->csb_map_field_info.get(namePair, fieldInfo);
+			const QualifiedNameMetaNamePair entry(param->prm_field_source, {});
+			const bool exist = csb->csb_map_field_info.get(entry, fieldInfo);
 
 			if (!exist)
 			{
 				dsc dummyDesc;
 				MET_get_domain(tdbb, csb->csb_pool, param->prm_field_source, &dummyDesc, &fieldInfo);
-				csb->csb_map_field_info.put(namePair, fieldInfo);
+				csb->csb_map_field_info.put(entry, fieldInfo);
 			}
 
 			if (fieldInfo.defaultValue)
@@ -865,7 +865,7 @@ ExtEngineManager::Function::Function(thread_db* tdbb, MemoryPool& pool, Compiler
 				impl->outDefaults.push(param->prm_number);
 			}
 
-			itemInfo.field = namePair;
+			itemInfo.field = entry;
 			itemInfo.nullable = fieldInfo.nullable;
 			itemInfo.fullDomain = true;
 		}
@@ -923,12 +923,12 @@ void ExtEngineManager::Function::execute(thread_db* tdbb, Request* request, jrd_
 		for (const auto paramNumber : impl->outDefaults)
 		{
 			const auto param = udf->getOutputFields()[paramNumber];
-			const MetaNamePair namePair(param->prm_field_source, "");
+			const QualifiedNameMetaNamePair entry(param->prm_field_source, {});
 			FieldInfo fieldInfo;
 
 			dsc* defaultValue = nullptr;
 
-			if (request->getStatement()->mapFieldInfo.get(namePair, fieldInfo) && fieldInfo.defaultValue)
+			if (request->getStatement()->mapFieldInfo.get(entry, fieldInfo) && fieldInfo.defaultValue)
 				defaultValue = EVL_expr(tdbb, request, fieldInfo.defaultValue);
 
 			const auto& paramDesc = udf->getOutputFormat()->fmt_desc[paramNumber * 2];
@@ -962,8 +962,8 @@ void ExtEngineManager::Function::execute(thread_db* tdbb, Request* request, jrd_
 		const MetaString& userName = udf->invoker ? udf->invoker->getUserName() : "";
 		ContextManager<IExternalFunction> ctxManager(tdbb, attInfo, function,
 			(udf->getName().package.isEmpty() ?
-				CallerName(obj_udf, udf->getName().identifier, userName) :
-				CallerName(obj_package_header, udf->getName().package, userName)));
+			CallerName(obj_udf, udf->getName(), userName) :
+			CallerName(obj_package_header, QualifiedName(udf->getName().package, udf->getName().schema), userName)));
 
 		EngineCheckout cout(tdbb, FB_FUNCTION, checkoutType(attInfo->engine));
 
@@ -1044,8 +1044,9 @@ ExtEngineManager::ResultSet::ResultSet(thread_db* tdbb, UCHAR* inMsg, UCHAR* out
 	const MetaString& userName = procedure->prc->invoker ? procedure->prc->invoker->getUserName() : "";
 	ContextManager<IExternalProcedure> ctxManager(tdbb, attInfo, procedure->procedure,
 		(procedure->prc->getName().package.isEmpty() ?
-			CallerName(obj_procedure, procedure->prc->getName().identifier, userName) :
-			CallerName(obj_package_header, procedure->prc->getName().package, userName)));
+			CallerName(obj_procedure, procedure->prc->getName(), userName) :
+			CallerName(obj_package_header,
+				QualifiedName(procedure->prc->getName().package, procedure->prc->getName().schema), userName)));
 
 	charSet = attachment->att_charset;
 
@@ -1078,8 +1079,9 @@ bool ExtEngineManager::ResultSet::fetch(thread_db* tdbb)
 	const MetaString& userName = procedure->prc->invoker ? procedure->prc->invoker->getUserName() : "";
 	ContextManager<IExternalProcedure> ctxManager(tdbb, attInfo, charSet,
 		(procedure->prc->getName().package.isEmpty() ?
-			CallerName(obj_procedure, procedure->prc->getName().identifier, userName) :
-			CallerName(obj_package_header, procedure->prc->getName().package, userName)));
+			CallerName(obj_procedure, procedure->prc->getName(), userName) :
+			CallerName(obj_package_header,
+				QualifiedName(procedure->prc->getName().package, procedure->prc->getName().schema), userName)));
 
 	EngineCheckout cout(tdbb, FB_FUNCTION, checkoutType(attInfo->engine));
 
@@ -1546,14 +1548,13 @@ void ExtEngineManager::makeFunction(thread_db* tdbb, CompilerScratch* csb, Jrd::
 	const MetaString& userName = udf->invoker ? udf->invoker->getUserName() : "";
 	ContextManager<IExternalFunction> ctxManager(tdbb, attInfo, attInfo->adminCharSet,
 		(udf->getName().package.isEmpty() ?
-			CallerName(obj_udf, udf->getName().identifier, userName) :
-			CallerName(obj_package_header, udf->getName().package, userName)));
+			CallerName(obj_udf, udf->getName(), userName) :
+			CallerName(obj_package_header, QualifiedName(udf->getName().package, udf->getName().schema), userName)));
 
 	MemoryPool& pool = *tdbb->getAttachment()->att_pool;
 
 	AutoPtr<RoutineMetadata> metadata(FB_NEW_POOL(pool) RoutineMetadata(pool));
-	metadata->package = udf->getName().package;
-	metadata->name = udf->getName().identifier;
+	metadata->name = udf->getName();
 	metadata->entryPoint = entryPointTrimmed;
 	metadata->body = body;
 	metadata->inputParameters.assignRefNoIncr(Routine::createMetadata(udf->getInputFields(), true));
@@ -1635,14 +1636,14 @@ void ExtEngineManager::makeProcedure(thread_db* tdbb, CompilerScratch* csb, jrd_
 	const MetaString& userName = prc->invoker ? prc->invoker->getUserName() : "";
 	ContextManager<IExternalProcedure> ctxManager(tdbb, attInfo, attInfo->adminCharSet,
 		(prc->getName().package.isEmpty() ?
-			CallerName(obj_procedure, prc->getName().identifier, userName) :
-			CallerName(obj_package_header, prc->getName().package, userName)));
+			CallerName(obj_procedure, prc->getName(), userName) :
+			CallerName(obj_package_header,
+				QualifiedName(prc->getName().package, prc->getName().schema), userName)));
 
 	MemoryPool& pool = *tdbb->getAttachment()->att_pool;
 
 	AutoPtr<RoutineMetadata> metadata(FB_NEW_POOL(pool) RoutineMetadata(pool));
-	metadata->package = prc->getName().package;
-	metadata->name = prc->getName().identifier;
+	metadata->name = prc->getName();
 	metadata->entryPoint = entryPointTrimmed;
 	metadata->body = body;
 	metadata->inputParameters.assignRefNoIncr(Routine::createMetadata(prc->getInputFields(), true));
@@ -1832,7 +1833,7 @@ void ExtEngineManager::makeTrigger(thread_db* tdbb, CompilerScratch* csb, Jrd::T
 		if (!externalTrigger)
 		{
 			status_exception::raise(
-				Arg::Gds(isc_eem_trig_not_returned) << trg->name << engine);
+				Arg::Gds(isc_eem_trig_not_returned) << trg->name.toString() << engine);
 		}
 
 		if (relation)

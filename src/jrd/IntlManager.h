@@ -28,6 +28,7 @@
 #define JRD_INTLMANAGER_H
 
 #include "../common/classes/fb_string.h"
+#include "../common/classes/MetaString.h"
 #include "../common/config/config_file.h"
 
 struct charset;
@@ -40,21 +41,21 @@ class IntlManager
 public:
 	static bool initialize();
 
-	static bool charSetInstalled(const Firebird::string& charSetName);
+	static bool charSetInstalled(const Firebird::MetaString& charSetName);
 
-	static bool collationInstalled(const Firebird::string& collationName,
-								   const Firebird::string& charSetName);
+	static bool collationInstalled(const Firebird::MetaString& collationName,
+								   const Firebird::MetaString& charSetName);
 
-	static bool lookupCharSet(const Firebird::string& charSetName, charset* cs);
+	static bool lookupCharSet(const Firebird::MetaString& charSetName, charset* cs);
 
-	static void lookupCollation(const Firebird::string& collationName,
-								const Firebird::string& charSetName,
+	static void lookupCollation(const Firebird::MetaString& collationName,
+								const Firebird::MetaString& charSetName,
 								USHORT attributes, const UCHAR* specificAttributes,
 								ULONG specificAttributesLen, bool ignoreAttributes,
 								texttype* tt);
 
 	static bool setupCollationAttributes(
-		const Firebird::string& collationName, const Firebird::string& charSetName,
+		const Firebird::MetaString& collationName, const Firebird::MetaString& charSetName,
 		const Firebird::string& specificAttributes, Firebird::string& newSpecificAttributes);
 
 public:
@@ -88,11 +89,11 @@ public:
 private:
 	static Firebird::string getConfigInfo(const ConfigFile::Parameter* par);
 
-	static bool registerCharSetCollation(const Firebird::string& name,
-		const Firebird::PathName& filename, const Firebird::string& externalName,
-		const Firebird::string& configInfo);
+	static bool registerCharSetCollation(const Firebird::MetaString& charSetName,
+		const Firebird::MetaString& collationName, const Firebird::PathName& filename,
+		const Firebird::string& externalName, const Firebird::string& configInfo);
 
-	static bool validateCharSet(const Firebird::string& charSetName, charset* cs);
+	static bool validateCharSet(const Firebird::MetaString& charSetName, charset* cs);
 };
 
 }	// namespace Jrd

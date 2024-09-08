@@ -163,7 +163,7 @@ namespace Jrd
 
 	private:
 		USHORT id;							// routine ID
-		QualifiedName name;					// routine name
+		QualifiedName name;				// routine name
 		MetaName securityName;				// security class name
 		Statement* statement;			// compiled routine statement
 		bool subRoutine;					// Is this a subroutine?

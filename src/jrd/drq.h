@@ -101,8 +101,6 @@ enum drq_type_t
 	drq_m_database,			// modify database
 	drq_m_index,			// modify index
 	drq_m_set_statistics,	// modify index (set statistics)
-	drq_e_grant1,			// erase grant
-	drq_e_grant2,			// erase grant
 	drq_s_indices,			// store indices
 	drq_l_lfield,			// lookup local field
 	drq_s_idx_segs,			// store index segments

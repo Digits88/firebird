@@ -326,6 +326,7 @@ const int op_dcl_local_table	= 31;
 const int op_outer_map		= 32;
 const int op_invoke_function	= 33;
 const int op_invsel_procedure	= 34;
+const int op_byte_opt_literal	= 35;	// FIXME: added but not using. Remove.
 
 static const UCHAR
 	// generic print formats
@@ -353,6 +354,10 @@ static const UCHAR
 	relation[]	= { op_byte, op_literal, op_pad, op_byte, op_line, 0},
 	relation2[] = { op_byte, op_literal, op_line, op_indent, op_byte,
 					op_literal, op_pad, op_byte, op_line, 0},
+	relation3[] = { op_line, op_indent, op_byte, op_literal,
+					op_line, op_indent, op_byte, op_literal,
+					op_line, op_indent, op_byte, op_literal,
+					op_line, op_indent, op_byte, op_line, 0},
 	aggregate[] = { op_byte, op_line, op_verb, op_verb, op_verb, 0},
 	rid[]		= { op_word, op_byte, op_line, 0},
 	rid2[]		= { op_word, op_byte, op_literal, op_pad, op_byte, op_line, 0},
@@ -363,6 +368,8 @@ static const UCHAR
 					op_args, 0},
 	gen_id[]	= { op_byte, op_literal, op_line, op_verb, 0},
 	gen_id2[]	= { op_byte, op_literal, op_line, 0},
+	gen_id3[]	= { op_line, op_indent, op_byte, op_literal, op_line, op_indent, op_byte, op_literal,
+					op_line, op_indent, op_byte_opt_verb, 0},
 	declare[]	= { op_word, op_dtype, op_line, 0},
 	one_word[]	= { op_word, op_line, 0},
 	indx[]		= { op_line, op_verb, op_indent, op_byte, op_line, op_args, 0},
@@ -420,7 +427,11 @@ static const UCHAR
 	in_list[] = { op_line, op_verb, op_indent, op_word, op_line, op_args, 0},
 	invoke_function[] = { op_invoke_function, 0 },
 	invsel_procedure[] = { op_invsel_procedure, 0 },
-	cast_format[] = { op_line, op_indent, op_byte, op_literal, op_line, op_indent, op_dtype, op_line, op_verb, 0 };
+	cast_format[] = { op_line, op_indent, op_byte, op_literal, op_line, op_indent, op_dtype, op_line, op_verb, 0 },
+	default2[] = { op_line, op_indent, op_byte, op_literal,
+				   op_line, op_indent, op_byte, op_literal,
+				   op_line, op_indent, op_byte, op_literal,
+				   op_pad, op_line, 0};
 
 
 #include "../jrd/blp.h"
@@ -3010,6 +3021,46 @@ static void blr_print_cond(gds_ctl* control, SSHORT level)
 			blr_print_char(control);
 		break;
 
+	case blr_exception2:
+		blr_format(control, "blr_exception2, ");
+		blr_print_line(control, (SSHORT) offset);
+		blr_indent(control, level);
+		n = blr_print_byte(control);
+		while (--n >= 0)
+			blr_print_char(control);
+		blr_print_line(control, (SSHORT) offset);
+		blr_indent(control, level);
+		n = blr_print_byte(control);
+		while (--n >= 0)
+			blr_print_char(control);
+		break;
+
+	case blr_exception3:
+		blr_format(control, "blr_exception3, ");
+		blr_print_line(control, (SSHORT) offset);
+		blr_indent(control, level);
+		n = blr_print_byte(control);
+		while (--n >= 0)
+			blr_print_char(control);
+		blr_print_line(control, (SSHORT) offset);
+		blr_indent(control, level);
+		n = blr_print_byte(control);
+		while (--n >= 0)
+			blr_print_char(control);
+		blr_print_line(control, (SSHORT) offset);
+		blr_indent(control, level);
+		n = blr_print_byte(control);
+		if (n == 0)
+			blr_print_line(control, (SSHORT) offset);
+		else
+			blr_print_verb(control, 0);
+		blr_indent(control, level);
+		n = blr_print_word(control);
+		blr_print_line(control, (SSHORT) offset);
+		while (--n >= 0)
+			blr_print_verb(control, level);
+		break;
+
 	case blr_exception_msg:
 		blr_format(control, "blr_exception_msg, ");
 		n = blr_print_byte(control);
@@ -3205,6 +3256,13 @@ static int blr_print_dtype(gds_ctl* control)
 		length = 0;
 		break;
 
+	case blr_domain_name3:
+		string = "domain_name3";
+		// Don't bother with this length.
+		// It will not be used for blr_domain_name3.
+		length = 0;
+		break;
+
 	case blr_column_name:
 		string = "column_name";
 		// Don't bother with this length.
@@ -3216,6 +3274,13 @@ static int blr_print_dtype(gds_ctl* control)
 		string = "column_name2";
 		// Don't bother with this length.
 		// It will not be used for blr_column_name2.
+		length = 0;
+		break;
+
+	case blr_column_name3:
+		string = "column_name3";
+		// Don't bother with this length.
+		// It will not be used for blr_column_name3.
 		length = 0;
 		break;
 
@@ -3278,13 +3343,23 @@ static int blr_print_dtype(gds_ctl* control)
 
 	case blr_domain_name:
 	case blr_domain_name2:
+	case blr_domain_name3:
 	case blr_column_name:
 	case blr_column_name2:
+	case blr_column_name3:
 		{
 			// 0 = blr_domain_type_of; 1 = blr_domain_full
 			blr_print_byte(control);
 
-			if (dtype == blr_column_name || dtype == blr_column_name2)
+			if (dtype == blr_domain_name3 || dtype == blr_column_name3)
+			{
+				for (UCHAR n = blr_print_byte(control); n > 0; --n)
+					blr_print_char(control);
+
+				blr_format(control, " ");
+			}
+
+			if (dtype == blr_column_name || dtype == blr_column_name2 || dtype == blr_column_name3)
 			{
 				for (UCHAR n = blr_print_byte(control); n > 0; --n)
 					blr_print_char(control);
@@ -3295,7 +3370,12 @@ static int blr_print_dtype(gds_ctl* control)
 			for (UCHAR n = blr_print_byte(control); n > 0; --n)
 				blr_print_char(control);
 
-			if (dtype == blr_domain_name2 || dtype == blr_column_name2)
+			bool hasTextType = dtype == blr_domain_name2 || dtype == blr_column_name2;
+
+			if (dtype == blr_domain_name3 || dtype == blr_column_name3)
+				hasTextType = blr_print_byte(control) != 0;
+
+			if (hasTextType)
 				blr_print_word(control);
 
 			break;
@@ -3443,6 +3523,15 @@ static void blr_print_verb(gds_ctl* control, SSHORT level)
 			n = blr_print_dtype(control);
 			break;
 
+		case op_byte_opt_literal:
+			n = blr_print_byte(control);
+			blr_print_line(control, (SSHORT) offset);
+			if (n == 0)
+				break;
+
+			n = blr_print_byte(control);
+			// fall through
+
 		case op_literal:
 		{
 			USHORT un = (USHORT) n;
@@ -3530,6 +3619,7 @@ static void blr_print_verb(gds_ctl* control, SSHORT level)
 			}
 			break;
 
+		// FIXME: blr_relation3
 		case op_relation:
 			blr_operator = control->ctl_blr_reader.getByte();
 			blr_print_blr(control, blr_operator);
@@ -4003,11 +4093,12 @@ static void blr_print_verb(gds_ctl* control, SSHORT level)
 				"args"
 			};
 
-			static const char* typeSubCodes[] =
+			static const char* idSubCodes[] =
 			{
 				nullptr,
-				"standalone",
-				"packaged",
+				"schema",
+				"package",
+				"name",
 				"sub"
 			};
 
@@ -4022,26 +4113,28 @@ static void blr_print_verb(gds_ctl* control, SSHORT level)
 
 				switch (blr_operator)
 				{
-					case blr_invoke_function_type:
-						n = control->ctl_blr_reader.getByte();
+					case blr_invoke_function_id:
+						++level;
 
-						if (n == 0 || n >= FB_NELEM(typeSubCodes))
-							blr_error(control, "*** invalid blr_invoke_function_type sub code ***");
-
-						blr_format(control, "blr_invoke_function_type_%s,", typeSubCodes[n]);
-						offset = blr_print_line(control, (SSHORT) offset);
-
-						blr_indent(control, level + 1);
-						blr_print_name(control);
-						offset = blr_print_line(control, (SSHORT) offset);
-
-						if (n == blr_invoke_function_type_packaged)
+						while ((n = control->ctl_blr_reader.getByte()) != blr_end)
 						{
-							blr_indent(control, level + 1);
-							blr_print_name(control);
+							if (n == 0 || n >= FB_NELEM(idSubCodes))
+								blr_error(control, "*** invalid blr_invoke_function_id sub code ***");
+
 							offset = blr_print_line(control, (SSHORT) offset);
+							blr_indent(control, level + 1);
+							blr_format(control, "blr_invoke_function_id_%s, ", idSubCodes[n]);
+
+							if (n == blr_invoke_function_id_schema ||
+								n == blr_invoke_function_id_package ||
+								n == blr_invoke_function_id_name)
+							{
+								blr_print_name(control);
+							}
 						}
 
+						offset = blr_print_line(control, (SSHORT) offset);
+						--level;
 						break;
 
 					case blr_invoke_function_arg_names:
@@ -4090,7 +4183,7 @@ static void blr_print_verb(gds_ctl* control, SSHORT level)
 			static const char* subCodes[] =
 			{
 				nullptr,
-				"type",
+				"id",
 				"in_arg_names",
 				"in_args",
 				"out_arg_names",
@@ -4101,11 +4194,12 @@ static void blr_print_verb(gds_ctl* control, SSHORT level)
 				"alias"
 			};
 
-			static const char* typeSubCodes[] =
+			static const char* idSubCodes[] =
 			{
 				nullptr,
-				"standalone",
-				"packaged",
+				"schema",
+				"package",
+				"name",
 				"sub"
 			};
 
@@ -4120,26 +4214,28 @@ static void blr_print_verb(gds_ctl* control, SSHORT level)
 
 				switch (blr_operator)
 				{
-					case blr_invsel_procedure_type:
-						n = control->ctl_blr_reader.getByte();
+					case blr_invsel_procedure_id:
+						++level;
 
-						if (n == 0 || n >= FB_NELEM(typeSubCodes))
-							blr_error(control, "*** invalid blr_invsel_procedure_type sub code ***");
-
-						blr_format(control, "blr_invsel_procedure_type_%s,", typeSubCodes[n]);
-						offset = blr_print_line(control, (SSHORT) offset);
-
-						blr_indent(control, level + 1);
-						blr_print_name(control);
-						offset = blr_print_line(control, (SSHORT) offset);
-
-						if (n == blr_invsel_procedure_type_packaged)
+						while ((n = control->ctl_blr_reader.getByte()) != blr_end)
 						{
-							blr_indent(control, level + 1);
-							blr_print_name(control);
+							if (n == 0 || n >= FB_NELEM(idSubCodes))
+								blr_error(control, "*** invalid blr_invsel_procedure_id sub code ***");
+
 							offset = blr_print_line(control, (SSHORT) offset);
+							blr_indent(control, level + 1);
+							blr_format(control, "blr_invsel_procedure_id_%s, ", idSubCodes[n]);
+
+							if (n == blr_invsel_procedure_id_schema ||
+								n == blr_invsel_procedure_id_package ||
+								n == blr_invsel_procedure_id_name)
+							{
+								blr_print_name(control);
+							}
 						}
 
+						offset = blr_print_line(control, (SSHORT) offset);
+						--level;
 						break;
 
 					case blr_invsel_procedure_in_arg_names:

@@ -116,7 +116,7 @@ struct DSqlCacheItem
 	}
 
 	Firebird::string key;
-	Firebird::GenericMap<Firebird::Pair<Firebird::Left<QualifiedName, bool> > > obsoleteMap;
+	Firebird::LeftPooledMap<QualifiedName, bool> obsoleteMap;
 	Lock* lock;
 	bool locked;
 };
@@ -139,9 +139,9 @@ struct DdlTriggerContext
 
 	Firebird::string eventType;
 	Firebird::string objectType;
-	MetaName objectName;
-	MetaName oldObjectName;
-	MetaName newObjectName;
+	QualifiedName objectName;
+	QualifiedName oldObjectName;
+	QualifiedName newObjectName;
 	Firebird::string sqlText;
 };
 
@@ -443,14 +443,14 @@ public:
 			: m_objects(pool)
 		{}
 
-		void store(SLONG id, const MetaName& name)
+		void store(SLONG id, const QualifiedName& name)
 		{
 			fb_assert(id >= 0);
-			fb_assert(name.hasData());
+			fb_assert(name.object.hasData());
 
 			if (id < (int) m_objects.getCount())
 			{
-				fb_assert(m_objects[id].isEmpty());
+				fb_assert(m_objects[id].object.isEmpty());
 				m_objects[id] = name;
 			}
 			else
@@ -460,9 +460,9 @@ public:
 			}
 		}
 
-		bool lookup(SLONG id, MetaName& name)
+		bool lookup(SLONG id, QualifiedName& name)
 		{
-			if (id < (int) m_objects.getCount() && m_objects[id].hasData())
+			if (id < (int) m_objects.getCount() && m_objects[id].object.hasData())
 			{
 				name = m_objects[id];
 				return true;
@@ -471,7 +471,7 @@ public:
 			return false;
 		}
 
-		SLONG lookup(const MetaName& name)
+		SLONG lookup(const QualifiedName& name)
 		{
 			FB_SIZE_T pos;
 
@@ -482,7 +482,7 @@ public:
 		}
 
 	private:
-		Firebird::Array<MetaName> m_objects;
+		Firebird::Array<QualifiedName> m_objects;
 	};
 
 	class InitialOptions
@@ -642,6 +642,7 @@ public:
 	CoercionArray* att_dest_bind;
 	USHORT att_original_timezone;
 	USHORT att_current_timezone;
+	Firebird::Array<Firebird::MetaString> att_schema_search_path;
 	int att_parallel_workers;
 	Firebird::TriState att_opt_first_rows;
 
@@ -855,6 +856,18 @@ public:
 		fb_assert(att_provider);
 		return att_provider;
 	}
+
+	void qualifyNewName(thread_db* /*tdbb*/, QualifiedName& name)
+	{
+		if (name.object.hasData())
+		{
+			if (name.schema.isEmpty())
+				name.schema = att_schema_search_path.front();	// FIXME: first existing schema
+			// FIXME: validate schema
+		}
+	}
+
+	void qualifyExistingName(thread_db* tdbb, QualifiedName& name, ObjectType objType);
 
 private:
 	Attachment(MemoryPool* pool, Database* dbb, JProvider* provider);

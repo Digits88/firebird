@@ -74,7 +74,10 @@ const ObjectType obj_tablespace = 35;
 const ObjectType obj_tablespaces = 36;
 const ObjectType obj_index_condition = 37;
 
-const ObjectType obj_type_MAX = 38;
+const ObjectType obj_schema = 38;
+const ObjectType obj_schemas = 39;
+
+const ObjectType obj_type_MAX = 40;
 
 // used in the parser only / no relation with obj_type_MAX (should be greater)
 const ObjectType obj_user_or_role= 100;
@@ -103,6 +106,7 @@ inline bool isDdlObject(ObjectType object_type)
 		case obj_collations:
 		case obj_jobs:
 		case obj_tablespaces:
+		case obj_schemas:
 			return true;
 		default:
 			return false;
@@ -110,6 +114,7 @@ inline bool isDdlObject(ObjectType object_type)
 }
 
 
+// FIXME: That may make sense to be associated with databases and schemas.
 inline const char* getSecurityClassName(ObjectType object_type)
 {
 	switch (object_type)
@@ -140,10 +145,12 @@ inline const char* getSecurityClassName(ObjectType object_type)
 			return "SQL$CHARSETS";
 		case obj_collations:
 			return "SQL$COLLATIONS";
-		case obj_tablespaces:
-			return "SQL$TABLESPACES";
 		case obj_jobs:
 			return "SQL$JOBS";
+		case obj_tablespaces:
+			return "SQL$TABLESPACES";
+		case obj_schemas:
+			return "SQL$SCHEMAS";
 		default:
 			return "";
 	}
@@ -182,10 +189,12 @@ inline const char* getDdlObjectName(ObjectType object_type)
 			return "ROLE";
 		case obj_filters:
 			return "FILTER";
-		case obj_tablespaces:
-			return "TABLESPACE";
 		case obj_jobs:
 			return "JOB";
+		case obj_tablespaces:
+			return "TABLESPACE";
+		case obj_schemas:
+			return "SCHEMA";
 		default:
 			fb_assert(false);
 			return "<unknown object type>";

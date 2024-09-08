@@ -343,6 +343,7 @@ int SecurityDatabaseManagement::execute(Firebird::CheckStatusWrapper* st, Firebi
 			// this checks the "entered" flags for each parameter (except the name)
 			// and makes all non-entered parameters null valued
 
+			// FIXME: check if epp queries are always scoped to (only) the system schema.
 			STORE (TRANSACTION_HANDLE transaction REQUEST_HANDLE request) U IN PLG$VIEW_USERS USING
 				STR_STORE(U.PLG$USER_NAME, user->userName()->get());
 

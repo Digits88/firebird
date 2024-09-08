@@ -712,10 +712,10 @@ void SnapshotData::putField(thread_db* tdbb, Record* record, const DumpField& fi
 		memcpy(&rel_id, field.data, field.length);
 
 		const jrd_rel* const relation = MET_lookup_relation_id(tdbb, rel_id, false);
-		if (!relation || relation->rel_name.isEmpty())
+		if (!relation || relation->rel_name.object.isEmpty())
 			return;
 
-		const MetaName& name = relation->rel_name;
+		const MetaName& name = relation->rel_name.object;	// FIXME: schema
 		dsc from_desc;
 		from_desc.makeText(name.length(), CS_METADATA, (UCHAR*) name.c_str());
 		MOV_move(tdbb, &from_desc, &to_desc);
@@ -1170,10 +1170,13 @@ void Monitoring::putStatement(SnapshotData::DumpRecord& record, const Statement*
 		if (routine->getName().package.hasData())
 			record.storeString(f_mon_cmp_stmt_pkg_name, routine->getName().package);
 
-		record.storeString(f_mon_cmp_stmt_name, routine->getName().identifier);
+		if (routine->getName().schema.hasData())
+			record.storeString(f_mon_cmp_sch_name, routine->getName().schema);
+
+		record.storeString(f_mon_cmp_stmt_name, routine->getName().object);
 		record.storeInteger(f_mon_cmp_stmt_type, routine->getObjectType());
 	}
-	else if (!statement->triggerName.isEmpty())
+	else if (statement->triggerName.object.hasData())
 	{
 		record.storeString(f_mon_cmp_stmt_name, statement->triggerName);
 		record.storeInteger(f_mon_cmp_stmt_type, obj_trigger);
@@ -1280,10 +1283,13 @@ void Monitoring::putCall(SnapshotData::DumpRecord& record, const Request* reques
 		if (routine->getName().package.hasData())
 			record.storeString(f_mon_call_pkg_name, routine->getName().package);
 
-		record.storeString(f_mon_call_name, routine->getName().identifier);
+		if (routine->getName().schema.hasData())
+			record.storeString(f_mon_call_sch_name, routine->getName().schema);
+
+		record.storeString(f_mon_call_name, routine->getName().object);
 		record.storeInteger(f_mon_call_type, routine->getObjectType());
 	}
-	else if (!statement->triggerName.isEmpty())
+	else if (statement->triggerName.object.hasData())
 	{
 		record.storeString(f_mon_call_name, statement->triggerName);
 		record.storeInteger(f_mon_call_type, obj_trigger);
@@ -1363,6 +1369,7 @@ void Monitoring::putStatistics(SnapshotData::DumpRecord& record, const RuntimeSt
 		record.reset(rel_mon_tab_stats);
 		record.storeGlobalId(f_mon_tab_stat_id, id);
 		record.storeInteger(f_mon_tab_stat_group, stat_group);
+		// FIXME: f_mon_tab_sch_name
 		record.storeTableId(f_mon_tab_name, (*iter).getRelationId());
 		record.storeGlobalId(f_mon_tab_rec_stat_id, rec_stat_id);
 		record.write();

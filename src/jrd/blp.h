@@ -173,7 +173,7 @@ static const struct
 	{"retrieve", two},
 	{"relation2", relation2},
 	{"rid2", rid2},
-	{NULL, NULL},
+	{"relation3", relation3},
 	{NULL, NULL},
 	{"set_generator", gen_id},	// 150
 	{"ansi_any", one},
@@ -261,5 +261,7 @@ static const struct
 	{"select_procedure", invsel_procedure},
 	{"default_arg", zero},
 	{"cast_format", cast_format},
+	{"gen_id3", gen_id3},
+	{"default2", default2},
 	{0, 0}
 };

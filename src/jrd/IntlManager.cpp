@@ -96,9 +96,10 @@ struct ExternalInfo
 	string configInfo;
 };
 
+using CharSetCollationName = FullPooledPair<MetaString, MetaString>;
 
 static GlobalPtr<ModulesMap> modules;
-static GlobalPtr<GenericMap<Pair<Full<string, ExternalInfo> > > > charSetCollations;
+static GlobalPtr<FullPooledMap<CharSetCollationName, ExternalInfo>> charSetCollations;
 
 
 const IntlManager::CharSetDefinition IntlManager::defaultCharSets[] =
@@ -417,7 +418,7 @@ const IntlManager::CollationDefinition IntlManager::defaultCollations[] =
 bool IntlManager::initialize()
 {
 	bool ok = true;
-	ObjectsArray<ConfigFile::String> conflicts;
+	ObjectsArray<CharSetCollationName> conflicts;
 	string builtinConfig;
 
 	PathName intlPath = fb_utils::getPrefix(Firebird::IConfigManager::DIR_INTL, "");
@@ -555,13 +556,12 @@ bool IntlManager::initialize()
 						externalName.ltrim(" \t");
 						collationName = collationName.substr(0, pos);
 					}
-					const ConfigFile::String charSetCollation = charSetName + ":" + collationName;
 
-					if (!registerCharSetCollation(charSetCollation.ToString(), filename,
+					if (!registerCharSetCollation(charSetName, collationName, filename,
 							(externalName.hasData() ? externalName : collationName).ToString(),
 							configInfo))
 					{
-						conflicts.add(charSetCollation);
+						conflicts.add({charSetName, collationName});
 						ok = false;
 					}
 				}
@@ -576,45 +576,46 @@ bool IntlManager::initialize()
 		ok = false;
 	}
 
-	registerCharSetCollation("NONE:NONE", "", "NONE", builtinConfig);
-	registerCharSetCollation("OCTETS:OCTETS", "", "OCTETS", builtinConfig);
-	registerCharSetCollation("ASCII:ASCII", "", "ASCII", builtinConfig);
-	registerCharSetCollation("UNICODE_FSS:UNICODE_FSS", "", "UNICODE_FSS", builtinConfig);
-	registerCharSetCollation("UTF8:UTF8", "", "UTF8", builtinConfig);
-	registerCharSetCollation("UTF8:UCS_BASIC", "", "UCS_BASIC", builtinConfig);
-	registerCharSetCollation("UTF8:UNICODE", "", "UNICODE", builtinConfig);
+	registerCharSetCollation("NONE", "NONE", "", "NONE", builtinConfig);
+	registerCharSetCollation("OCTETS", "OCTETS", "", "OCTETS", builtinConfig);
+	registerCharSetCollation("ASCII", "ASCII", "", "ASCII", builtinConfig);
+	registerCharSetCollation("UNICODE_FSS", "UNICODE_FSS", "", "UNICODE_FSS", builtinConfig);
+	registerCharSetCollation("UTF8", "UTF8", "", "UTF8", builtinConfig);
+	registerCharSetCollation("UTF8", "UCS_BASIC", "", "UCS_BASIC", builtinConfig);
+	registerCharSetCollation("UTF8", "UNICODE", "", "UNICODE", builtinConfig);
 
-	registerCharSetCollation("UTF16:UTF16", "", "UTF16", builtinConfig);
+	registerCharSetCollation("UTF16", "UTF16", "", "UTF16", builtinConfig);
 #ifdef FB_NEW_INTL_ALLOW_NOT_READY
-	registerCharSetCollation("UTF16:UCS_BASIC", "", "UCS_BASIC", builtinConfig);
-	registerCharSetCollation("UTF32:UTF32", "", "UTF32", builtinConfig);
-	registerCharSetCollation("UTF32:UCS_BASIC", "", "UCS_BASIC", builtinConfig);
+	registerCharSetCollation("UTF16", "UCS_BASIC", "", "UCS_BASIC", builtinConfig);
+	registerCharSetCollation("UTF32", "UTF32", "", "UTF32", builtinConfig);
+	registerCharSetCollation("UTF32", "UCS_BASIC", "", "UCS_BASIC", builtinConfig);
 #endif
 
-	for (ObjectsArray<ConfigFile::String>::const_iterator name(conflicts.begin()); name != conflicts.end(); ++name)
-		charSetCollations->remove(name->ToString());
+	for (const auto& conflict : conflicts)
+		charSetCollations->remove(conflict);
 
 	return ok;
 }
 
 
-bool IntlManager::charSetInstalled(const string& charSetName)
+bool IntlManager::charSetInstalled(const MetaString& charSetName)
 {
-	return charSetCollations->exist(charSetName + ":" + charSetName);
+	return charSetCollations->exist({charSetName, charSetName});
 }
 
 
-bool IntlManager::collationInstalled(const string& collationName, const string& charSetName)
+bool IntlManager::collationInstalled(const MetaString& collationName, const MetaString& charSetName)
 {
-	return charSetCollations->exist(charSetName + ":" + collationName);
+	return charSetCollations->exist({charSetName, collationName});
 }
 
 
-bool IntlManager::lookupCharSet(const string& charSetName, charset* cs)
+// FIXME:
+bool IntlManager::lookupCharSet(const MetaString& charSetName, charset* cs)
 {
 	ExternalInfo externalInfo;
 
-	if (charSetCollations->get(charSetName + ":" + charSetName, externalInfo))
+	if (charSetCollations->get({charSetName, charSetName}, externalInfo))
 	{
 		pfn_INTL_lookup_charset lookupFunction = NULL;
 
@@ -639,8 +640,8 @@ bool IntlManager::lookupCharSet(const string& charSetName, charset* cs)
 }
 
 
-void IntlManager::lookupCollation(const string& collationName,
-								  const string& charSetName,
+void IntlManager::lookupCollation(const MetaString& collationName,
+								  const MetaString& charSetName,
 								  USHORT attributes, const UCHAR* specificAttributes,
 								  ULONG specificAttributesLen, bool ignoreAttributes,
 								  texttype* tt)
@@ -649,8 +650,8 @@ void IntlManager::lookupCollation(const string& collationName,
 	ExternalInfo collationExternalInfo;
 	char statusBuffer[BUFFER_LARGE] = "";
 
-	if (charSetCollations->get(charSetName + ":" + charSetName, charSetExternalInfo) &&
-		charSetCollations->get(charSetName + ":" + collationName, collationExternalInfo))
+	if (charSetCollations->get({charSetName, charSetName}, charSetExternalInfo) &&
+		charSetCollations->get({charSetName, collationName}, collationExternalInfo))
 	{
 		ModuleLoader::Module* module = nullptr;
 
@@ -700,8 +701,9 @@ void IntlManager::lookupCollation(const string& collationName,
 }
 
 
+// FIXME:
 bool IntlManager::setupCollationAttributes(
-	const string& collationName, const string& charSetName,
+	const MetaString& collationName, const MetaString& charSetName,
 	const string& specificAttributes, string& newSpecificAttributes)
 {
 	ExternalInfo charSetExternalInfo;
@@ -709,8 +711,8 @@ bool IntlManager::setupCollationAttributes(
 
 	newSpecificAttributes = specificAttributes;
 
-	if (charSetCollations->get(charSetName + ":" + charSetName, charSetExternalInfo) &&
-		charSetCollations->get(charSetName + ":" + collationName, collationExternalInfo))
+	if (charSetCollations->get({charSetName, charSetName}, charSetExternalInfo) &&
+		charSetCollations->get({charSetName, collationName}, collationExternalInfo))
 	{
 		pfn_INTL_setup_attributes attributesFunction = NULL;
 
@@ -793,26 +795,26 @@ string IntlManager::getConfigInfo(const ConfigFile::Parameter* confObj)
 }
 
 
-bool IntlManager::registerCharSetCollation(const string& name, const PathName& filename,
-	const string& externalName, const string& configInfo
+bool IntlManager::registerCharSetCollation(const MetaString& charSetName, const MetaString& collationName,
+	const PathName& filename, const string& externalName, const string& configInfo
 )
 {
 	ExternalInfo conflict;
 
-	if (charSetCollations->get(name, conflict))
+	if (charSetCollations->get({charSetName, collationName}, conflict))
 	{
-		gds__log((string("INTL plugin conflict: ") + name + " defined in " +
+		gds__log((string("INTL plugin conflict: ") + charSetName + ":" + collationName + " defined in " +
 			(conflict.moduleName.isEmpty() ? "<builtin>" : conflict.moduleName.c_str()) +
 			" and " + filename.c_str()).c_str());
 		return false;
 	}
 
-	charSetCollations->put(name, ExternalInfo(filename, externalName, configInfo));
+	charSetCollations->put({charSetName, collationName}, ExternalInfo(filename, externalName, configInfo));
 	return true;
 }
 
 
-bool IntlManager::validateCharSet(const string& charSetName, charset* cs)
+bool IntlManager::validateCharSet(const MetaString& charSetName, charset* cs)
 {
 	bool valid = true;
 	string s;

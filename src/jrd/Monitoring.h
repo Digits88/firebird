@@ -151,8 +151,10 @@ public:
 		template <class S>
 		void storeString(int field_id, const S& value)
 		{
+			/* FIXME:
 			if (value.length())
 				storeField(field_id, VALUE_STRING, value.length(), value.c_str());
+			*/
 		}
 
 		void storeBoolean(int field_id, bool value)

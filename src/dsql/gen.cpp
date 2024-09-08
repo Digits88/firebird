@@ -517,7 +517,7 @@ static void gen_plan(DsqlCompilerScratch* dsqlScratch, const PlanNode* planNode)
 
 			case PlanNode::AccessType::TYPE_NAVIGATIONAL:
 				dsqlScratch->appendUChar(blr_navigational);
-				dsqlScratch->appendNullString(idx_iter->indexName.c_str());
+				dsqlScratch->appendNullString(idx_iter->indexName.object.c_str());	// FIXME:
 				if (idx_count == 1)
 					break;
 				// dimitr: FALL INTO, if the plan item is ORDER ... INDEX (...)
@@ -532,7 +532,7 @@ static void gen_plan(DsqlCompilerScratch* dsqlScratch, const PlanNode* planNode)
 				dsqlScratch->appendUChar(idx_count);
 
 				for (; idx_iter != node->accessType->items.end(); ++idx_iter)
-					dsqlScratch->appendNullString(idx_iter->indexName.c_str());
+					dsqlScratch->appendNullString(idx_iter->indexName.object.c_str());	// FIXME:
 
 				break;
 			}

@@ -339,7 +339,7 @@ public:
 class CollateNode final : public TypedNode<ValueExprNode, ExprNode::TYPE_COLLATE>
 {
 public:
-	CollateNode(MemoryPool& pool, ValueExprNode* aArg, const MetaName& aCollation);
+	CollateNode(MemoryPool& pool, ValueExprNode* aArg, const QualifiedName& aCollation);
 
 	virtual void getChildren(NodeRefsHolder& holder, bool dsql) const
 	{
@@ -353,7 +353,7 @@ public:
 	virtual ValueExprNode* dsqlPass(DsqlCompilerScratch* dsqlScratch);
 
 	static ValueExprNode* pass1Collate(DsqlCompilerScratch* dsqlScratch, ValueExprNode* input,
-		const MetaName& collation);
+		QualifiedName& collation);
 
 	// This class is used only in the parser. It turns in a CastNode in dsqlPass.
 
@@ -394,7 +394,7 @@ private:
 
 public:
 	NestConst<ValueExprNode> arg;
-	MetaName collation;
+	QualifiedName collation;
 };
 
 
@@ -612,7 +612,7 @@ public:
 class DefaultNode : public DsqlNode<DefaultNode, ExprNode::TYPE_DEFAULT>
 {
 public:
-	explicit DefaultNode(MemoryPool& pool, const MetaName& aRelationName,
+	explicit DefaultNode(MemoryPool& pool, const QualifiedName& aRelationName,
 		const MetaName& aFieldName);
 
 	static DmlNode* parse(thread_db* tdbb, MemoryPool& pool, CompilerScratch* csb, const UCHAR blrOp);
@@ -631,7 +631,7 @@ public:
 	virtual ValueExprNode* pass1(thread_db* tdbb, CompilerScratch* csb);
 
 public:
-	const MetaName relationName;
+	const QualifiedName relationName;
 	const MetaName fieldName;
 
 private:
@@ -834,10 +834,10 @@ public:
 
 private:
 	static dsql_fld* resolveContext(DsqlCompilerScratch* dsqlScratch,
-		const MetaName& qualifier, dsql_ctx* context);
+		const QualifiedName& qualifier, dsql_ctx* context);
 
 public:
-	MetaName dsqlQualifier;
+	QualifiedName dsqlQualifier;
 	MetaName dsqlName;
 	dsql_ctx* const dsqlContext;
 	dsql_fld* const dsqlField;
@@ -855,7 +855,7 @@ class GenIdNode final : public TypedNode<ValueExprNode, ExprNode::TYPE_GEN_ID>
 {
 public:
 	GenIdNode(MemoryPool& pool, bool aDialect1,
-			  const MetaName& name,
+			  const QualifiedName& name,
 			  ValueExprNode* aArg,
 			  bool aImplicit, bool aIdentity);
 
@@ -977,7 +977,7 @@ public:
 	void fixMinSInt128(MemoryPool& pool);
 
 public:
-	const IntlString* dsqlStr = nullptr;
+	NestConst<IntlString> dsqlStr;
 	dsc litDesc;
 	USHORT litNumStringLength = 0;
 };
@@ -1656,7 +1656,7 @@ public:
 class RecordKeyNode final : public TypedNode<ValueExprNode, ExprNode::TYPE_RECORD_KEY>
 {
 public:
-	RecordKeyNode(MemoryPool& pool, UCHAR aBlrOp, const MetaName& aDsqlQualifier = NULL);
+	RecordKeyNode(MemoryPool& pool, UCHAR aBlrOp, const QualifiedName& aDsqlQualifier = {});
 
 	static DmlNode* parse(thread_db* tdbb, MemoryPool& pool, CompilerScratch* csb, const UCHAR blrOp);
 
@@ -1728,7 +1728,7 @@ private:
 	void raiseError(dsql_ctx* context) const;
 
 public:
-	MetaName dsqlQualifier;
+	QualifiedName dsqlQualifier;
 	NestConst<RecordSourceNode> dsqlRelation;
 	StreamType recStream;
 	const UCHAR blrOp;

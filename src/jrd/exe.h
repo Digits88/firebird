@@ -216,8 +216,8 @@ struct AccessItem
 {
 	MetaName		acc_security_name;
 	SLONG			acc_ss_rel_id;	// Relation Id which owner will be used to check permissions
-	MetaName		acc_name;
-	MetaName		acc_r_name;
+	QualifiedName	acc_name;
+	MetaName		acc_col_name;
 	ObjectType		acc_type;
 	SecurityClass::flags_t	acc_mask;
 
@@ -243,20 +243,20 @@ struct AccessItem
 		if (i1.acc_mask != i2.acc_mask)
 			return i1.acc_mask > i2.acc_mask;
 
-		if ((v = i1.acc_name.compare(i2.acc_name)) != 0)
-			return v > 0;
+		if (i1.acc_name != i2.acc_name)
+			return i1.acc_name > i2.acc_name;
 
-		if ((v = i1.acc_r_name.compare(i2.acc_r_name)) != 0)
-			return v > 0;
+		if (i1.acc_col_name != i2.acc_col_name)
+			return i1.acc_col_name > i2.acc_col_name;
 
 		return false; // Equal
 	}
 
 	AccessItem(const MetaName& security_name, SLONG view_id,
-		const MetaName& name, ObjectType type,
-		SecurityClass::flags_t mask, const MetaName& relName)
+		const QualifiedName& name, ObjectType type,
+		SecurityClass::flags_t mask, const MetaName& columnName)
 		: acc_security_name(security_name), acc_ss_rel_id(view_id), acc_name(name),
-			acc_r_name(relName), acc_type(type), acc_mask(mask)
+			acc_col_name(columnName), acc_type(type), acc_mask(mask)
 	{}
 };
 
@@ -422,13 +422,13 @@ public:
 
 public:
 	MetaName name;
-	MetaNamePair field;
+	QualifiedNameMetaNamePair field;
 	bool nullable;
 	bool explicitCollation;
 	bool fullDomain;
 };
 
-typedef Firebird::LeftPooledMap<MetaNamePair, FieldInfo> MapFieldInfo;
+typedef Firebird::LeftPooledMap<QualifiedNameMetaNamePair, FieldInfo> MapFieldInfo;
 typedef Firebird::RightPooledMap<Item, ItemInfo> MapItemInfo;
 
 // Compile scratch block
@@ -451,7 +451,7 @@ public:
 			jrd_rel* relation;
 			const Function* function;
 			const jrd_prc* procedure;
-			const MetaName* name;
+			const QualifiedName* name;
 			SLONG number;
 		};
 
@@ -493,6 +493,7 @@ public:
 		subProcedures(p),
 		outerMessagesMap(p),
 		outerVarsMap(p),
+		csb_schema(p),
 		csb_currentForNode(NULL),
 		csb_currentDMLNode(NULL),
 		csb_currentAssignTarget(NULL),
@@ -528,6 +529,17 @@ public:
 	{
 		auto& dependencies = mainCsb ? mainCsb->csb_dependencies : csb_dependencies;
 		dependencies.add(dependency);
+	}
+
+	void qualifyExistingName(thread_db* tdbb, QualifiedName& name, ObjectType objType)
+	{
+		if (name.object.hasData() && name.schema.isEmpty())
+		{
+			if (csb_schema.hasData())
+				name.schema = csb_schema;
+			else
+				tdbb->getAttachment()->qualifyExistingName(tdbb, name, objType);
+		}
 	}
 
 #ifdef CMP_DEBUG
@@ -577,7 +589,7 @@ public:
 	// Map of message number to field number to pad for external routines.
 	Firebird::GenericMap<Firebird::Pair<Firebird::NonPooled<USHORT, USHORT> > > csb_message_pad;
 
-	MetaName	csb_domain_validation;	// Parsing domain constraint in PSQL
+	QualifiedName	csb_domain_validation;	// Parsing domain constraint in PSQL
 
 	// used in cmp.cpp/pass1
 	jrd_rel*	csb_view;
@@ -593,6 +605,8 @@ public:
 	Firebird::LeftPooledMap<MetaName, DeclareSubProcNode*> subProcedures;
 	Firebird::NonPooledMap<USHORT, USHORT> outerMessagesMap;	// <inner, outer>
 	Firebird::NonPooledMap<USHORT, USHORT> outerVarsMap;		// <inner, outer>
+
+	MetaName csb_schema;	// FIXME: set in all neccessary places
 
 	ForNode*	csb_currentForNode;
 	StmtNode*	csb_currentDMLNode;		// could be StoreNode or ModifyNode

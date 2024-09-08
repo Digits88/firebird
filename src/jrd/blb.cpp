@@ -1749,8 +1749,12 @@ void blb::put_slice(thread_db*	tdbb,
 		ERR_punt();
 
 	jrd_rel* relation;
-	if (info.sdl_info_relation.length()) {
-		relation = MET_lookup_relation(tdbb, info.sdl_info_relation);
+	if (info.sdl_info_relation.length())
+	{
+		auto infoRelationName = QualifiedName::parse(info.sdl_info_relation);	// FIXME: ?
+		tdbb->getAttachment()->qualifyExistingName(tdbb, infoRelationName, obj_relation);
+
+		relation = MET_lookup_relation(tdbb, infoRelationName);
 	}
 	else {
 		relation = MET_relation(tdbb, info.sdl_info_rid);

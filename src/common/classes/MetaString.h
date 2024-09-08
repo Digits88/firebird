@@ -93,6 +93,28 @@ public:
 	int compare(const AbstractString& s) const { return compare(s.c_str(), s.length()); }
 	int compare(const MetaString& m) const { return memcmp(data, m.data, MAX_SQL_IDENTIFIER_SIZE); }
 
+	string toQuotedString() const
+	{
+		string s;
+
+		if (hasData())
+		{
+			s.append("\"");
+
+			for (const auto c : *this)
+			{
+				if (c == '"')
+					s.append("\"");
+
+				s.append(&c, 1);
+			}
+
+			s.append("\"");
+		}
+
+		return s;
+	}
+
 	bool operator==(const char* s) const { return compare(s) == 0; }
 	bool operator!=(const char* s) const { return compare(s) != 0; }
 	bool operator==(const AbstractString& s) const { return compare(s) == 0; }
@@ -110,6 +132,128 @@ public:
 protected:
 	static void adjustLength(const char* const s, FB_SIZE_T& l);
 };
+
+template <typename T>
+class BaseQualifiedName
+{
+public:
+	explicit BaseQualifiedName(MemoryPool& p, const T& aObject,
+			const T& aSchema = {}, const T& aPackage = {})
+		: object(p, aObject),
+		  schema(p, aSchema),
+		  package(p, aPackage)
+	{
+	}
+
+	explicit BaseQualifiedName(const T& aObject, const T& aSchema = {}, const T& aPackage = {})
+		: object(aObject),
+		  schema(aSchema),
+		  package(aPackage)
+	{
+	}
+
+	BaseQualifiedName(MemoryPool& p, const BaseQualifiedName& src)
+		: object(p, src.object),
+		  schema(p, src.schema),
+		  package(p, src.package)
+	{
+	}
+
+	BaseQualifiedName(const BaseQualifiedName& src)
+		: object(src.object),
+		  schema(src.schema),
+		  package(src.package)
+	{
+	}
+
+	explicit BaseQualifiedName(MemoryPool& p)
+		: object(p),
+		  schema(p),
+		  package(p)
+	{
+	}
+
+	BaseQualifiedName()
+	{
+	}
+
+public:
+	static BaseQualifiedName<T> parse(const string& str)
+	{
+		// FIXME: parse
+		return BaseQualifiedName<T>(str);
+	}
+
+public:
+	bool operator<(const BaseQualifiedName& m) const
+	{
+		return schema < m.schema ||
+			(schema == m.schema && object < m.object) ||
+			(schema == m.schema && object == m.object && package < m.package);
+	}
+
+	bool operator>(const BaseQualifiedName& m) const
+	{
+		return schema > m.schema ||
+			(schema == m.schema && object > m.object) ||
+			(schema == m.schema && object == m.object && package > m.package);
+	}
+
+	bool operator==(const BaseQualifiedName& m) const
+	{
+		return schema == m.schema && object == m.object && package == m.package;
+	}
+
+	bool operator!=(const BaseQualifiedName& m) const
+	{
+		return !(*this == m);
+	}
+
+public:
+	BaseQualifiedName getSchemaAndPackage() const
+	{
+		return BaseQualifiedName(package, schema);
+	}
+
+	void clear()
+	{
+		object = {};
+		schema = {};
+		package = {};
+	}
+
+	Firebird::string toString() const
+	{
+		Firebird::string s;
+
+		const auto appendName = [&s](const T& name) {
+			if (name.hasData())
+			{
+				s += name.toQuotedString();
+				return true;
+			}
+
+			return false;
+		};
+
+		if (appendName(schema))
+			s.append(".");
+
+		if (appendName(package))
+			s.append(".");
+
+		appendName(object);
+
+		return s;
+	}
+
+public:
+	T object;
+	T schema;
+	T package;
+};
+
+using QualifiedMetaString = Firebird::BaseQualifiedName<MetaString>;
 
 } // namespace Firebird
 

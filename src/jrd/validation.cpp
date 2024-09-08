@@ -1156,7 +1156,7 @@ Validation::RTN Validation::corrupt(int err_code, const jrd_rel* relation, ...)
 	if (relation)
 	{
 		gds__log("Database: %s\n\t%s in table %s (%d)",
-			fn, s.c_str(), relation->rel_name.c_str(), relation->rel_id);
+			fn, s.c_str(), relation->rel_name.toString().c_str(), relation->rel_id);
 	}
 	else
 		gds__log("Database: %s\n\t%s", fn, s.c_str());
@@ -1648,6 +1648,7 @@ void Validation::walk_database()
 			if ((vdr_flags & VDR_online) && relation->isSystem())
 				continue;
 
+			/* FIXME:
 			if (vdr_tab_incl)
 			{
 				if (!vdr_tab_incl->matches(relation->rel_name.c_str(), relation->rel_name.length()))
@@ -1659,6 +1660,7 @@ void Validation::walk_database()
 				if (vdr_tab_excl->matches(relation->rel_name.c_str(), relation->rel_name.length()))
 					continue;
 			}
+			*/
 
 			// We can't realiable track double allocated page's when validating online.
 			// All we can check is that page is not double allocated at the same relation.
@@ -1666,7 +1668,7 @@ void Validation::walk_database()
 				vdr_page_bitmap->clear();
 
 			string relName;
-			relName.printf("Relation %d (%s)", relation->rel_id, relation->rel_name.c_str());
+			relName.printf("Relation %d (%s)", relation->rel_id, relation->rel_name.toString().c_str());
 			output("%s\n", relName.c_str());
 
 			int errs = vdr_errors;
@@ -3170,10 +3172,13 @@ Validation::RTN Validation::walk_relation(jrd_rel* relation)
 	{
 		if (!(vdr_flags & VDR_online))
 		{
-			const char* msg = relation->rel_name.length() > 0 ?
-				"bugcheck during scan of table %d (%s)" :
-				"bugcheck during scan of table %d";
-			gds__log(msg, relation->rel_id, relation->rel_name.c_str());
+			if (relation->rel_name.object.hasData())
+			{
+				gds__log("bugcheck during scan of table %d (%s)",
+					relation->rel_id, relation->rel_name.toString().c_str());
+			}
+			else
+				gds__log("bugcheck during scan of table %d", relation->rel_id);
 		}
 #ifdef DEBUG_VAL_VERBOSE
 		if (VAL_debug_level)
@@ -3219,7 +3224,7 @@ Validation::RTN Validation::walk_root(jrd_rel* relation, bool getInfo)
 		if (page->irt_rpt[i].getRoot() == 0)
 			continue;
 
-		MetaName index;
+		QualifiedName index;
 
 		release_page(&window);
 		MET_lookup_index(vdr_tdbb, index, relation->rel_name, i + 1);
@@ -3227,13 +3232,15 @@ Validation::RTN Validation::walk_root(jrd_rel* relation, bool getInfo)
 
 		if (vdr_idx_incl)
 		{
-			if (!vdr_idx_incl->matches(index.c_str(), index.length()))
+			// FIXME:
+			if (!vdr_idx_incl->matches(index.object.c_str(), index.object.length()))
 				continue;
 		}
 
 		if (vdr_idx_excl)
 		{
-			if (vdr_idx_excl->matches(index.c_str(), index.length()))
+			// FIXME:
+			if (vdr_idx_excl->matches(index.object.c_str(), index.object.length()))
 				continue;
 		}
 
@@ -3251,7 +3258,7 @@ Validation::RTN Validation::walk_root(jrd_rel* relation, bool getInfo)
 			continue;
 		}
 
-		output("Index %d (%s)\n", i + 1, index.c_str());
+		output("Index %d (%s)\n", i + 1, index.toString().c_str());
 		walk_index(relation, *page, i);
 	}
 
